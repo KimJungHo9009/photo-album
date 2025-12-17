@@ -36,19 +36,23 @@
     let idx = 0;
     let timer = null;
     let isPlaying = true;
+    let isLocked = false; // ✅ 마지막에서 완전 잠금
+
+    function atLast() {
+      return idx >= images.length - 1;
+    }
 
     function preload(i) {
       if (!images.length) return;
-      const safe = (i + images.length) % images.length;
+      const safe = Math.max(0, Math.min(i, images.length - 1)); // ✅ 범위 고정
       const img = new Image();
       img.src = images[safe];
     }
 
     function show(i) {
       if (!images.length) return;
-      idx = (i + images.length) % images.length;
+      idx = Math.max(0, Math.min(i, images.length - 1)); // ✅ 마지막에서 멈춤 (루프 없음)
 
-      // 페이드 아웃 -> src 변경 -> 로드 후 페이드 인
       viewer.style.opacity = 0;
 
       const nextSrc = images[idx];
@@ -57,58 +61,81 @@
         viewer.src = nextSrc;
         viewer.style.opacity = 1;
 
-        // 주변 프리로드(체감 품질 핵심)
         preload(idx + 1);
         preload(idx - 1);
+
+        // ✅ 마지막 이미지면: 자동 넘김 중단 + 입력 잠금
+        if (atLast()) {
+          lockAtEnd();
+        }
       };
       tmp.src = nextSrc;
     }
 
+    function lockAtEnd() {
+      isLocked = true;
+      isPlaying = false;
+      clearTimeout(timer);
+    }
+
     function scheduleNext() {
       clearTimeout(timer);
-      if (!isPlaying) return;
-      timer = setTimeout(() => {
-        next(false);
-      }, INTERVAL_MS);
+      if (!isPlaying || isLocked) return;
+      timer = setTimeout(() => next(false), INTERVAL_MS);
     }
 
     function next(fromUser = true) {
+      if (isLocked) return;
+      if (atLast()) {
+        lockAtEnd();   // ✅ 혹시나 호출돼도 잠금
+        return;
+      }
       show(idx + 1);
-      // 사용자 액션이면 즉시 넘기고 타이머 리셋
       scheduleNext();
     }
 
     function prev() {
+      // ✅ 요구사항: 마지막에서 사용자 액션도 동작하지 않게
+      if (isLocked) return;
       show(idx - 1);
       scheduleNext();
     }
 
-    // 클릭하면 다음 장
-    document.addEventListener("click", () => next(true));
+    // ✅ 사용자 이벤트: locked면 전부 무시
+    document.addEventListener("click", () => {
+      if (isLocked) return;
+      next(true);
+    });
 
-    // 키보드 지원
     document.addEventListener("keydown", (e) => {
+      if (isLocked) return;
+
       if (e.key === "ArrowRight") next(true);
       if (e.key === "ArrowLeft") prev();
-      if (e.key === " ") { // 재생/일시정지
+      if (e.key === " ") {
         e.preventDefault();
         isPlaying = !isPlaying;
         scheduleNext();
       }
     });
 
-    // 모바일 스와이프(아주 간단)
     let startX = null;
     document.addEventListener("touchstart", (e) => {
+      if (isLocked) return;
       startX = e.touches[0].clientX;
     }, { passive: true });
+
     document.addEventListener("touchend", (e) => {
+      if (isLocked) return;
       if (startX == null) return;
+
       const endX = e.changedTouches[0].clientX;
       const dx = endX - startX;
       startX = null;
+
       if (Math.abs(dx) < 40) return;
-      if (dx < 0) next(true); else prev();
+      if (dx < 0) next(true);
+      else prev();
     }, { passive: true });
 
     // 시작
