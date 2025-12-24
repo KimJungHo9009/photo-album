@@ -19,16 +19,18 @@
   </style>
 </head>
 <body>
+  <audio id="bgm" src="audio/bgm1.mp3" loop preload="auto"></audio>
   <div id="wrap">
     <img id="viewer" alt="album" />
   </div>
 
   <script>
-    const images = [
-      "images/표지(1080x1350)_C 1.png",
-      "images/목차 2.png",
-      "images/간지 1.png",
-    ];
+    const TOTAL_IMAGES = 94;
+
+    const images = Array.from(
+      { length: TOTAL_IMAGES },
+      (_, i) => `images/${i + 1}.png`
+    );
 
     const INTERVAL_MS = 3000;
 
@@ -137,6 +139,18 @@
       if (dx < 0) next(true);
       else prev();
     }, { passive: true });
+
+    const bgm = document.getElementById("bgm");
+    bgm.volume = 0.35;
+
+    async function tryPlayBgm() {
+      try { await bgm.play(); }
+      catch (e) { /* 자동재생 차단이면 정상. 무시 */ }
+    }
+
+    window.addEventListener("load", tryPlayBgm);                 // 로드 시 1회 시도
+    window.addEventListener("pointerdown", tryPlayBgm, { once:true }); // 사용자 액션 시 재시도
+    window.addEventListener("keydown", tryPlayBgm, { once:true });
 
     // 시작
     show(0);
